@@ -1,0 +1,97 @@
+#!/bin/bash
+
+# Function to print error messages
+error() {
+  local MESSAGE=$1
+  echo "[ERROR] $MESSAGE" >&2
+}
+
+# Function to extract files
+extract() {
+  local FILE=$1
+  local OUTPUT_DIR=$2
+
+  case "$FILE" in
+    *.tar.bz2)   tar xjf "$FILE" -C "$OUTPUT_DIR" > /dev/null 2>&1 ;;
+    *.tar.gz)    tar xzf "$FILE" -C "$OUTPUT_DIR" > /dev/null 2>&1 ;;
+    *.tar.xz)    tar xf "$FILE" -C "$OUTPUT_DIR" > /dev/null 2>&1 ;;
+    *.bz2)       bunzip2 -c "$FILE" > "$OUTPUT_DIR/${FILE%.bz2}" > /dev/null 2>&1 ;;
+    *.rar)       unrar x "$FILE" "$OUTPUT_DIR" > /dev/null 2>&1 ;;
+    *.gz)        gunzip -c "$FILE" > "$OUTPUT_DIR/${FILE%.gz}" > /dev/null 2>&1 ;;
+    *.tar)       tar xf "$FILE" -C "$OUTPUT_DIR" > /dev/null 2>&1 ;;
+    *.tbz2)      tar xjf "$FILE" -C "$OUTPUT_DIR" > /dev/null 2>&1 ;;
+    *.tgz)       tar xzf "$FILE" -C "$OUTPUT_DIR" > /dev/null 2>&1 ;;
+    *.zip)       unzip -d "$OUTPUT_DIR" "$FILE" > /dev/null 2>&1 ;;
+    *.Z)         uncompress -c "$FILE" > "$OUTPUT_DIR/${FILE%.Z}" > /dev/null 2>&1 ;;
+    *.7z)        7z x "$FILE" -o"$OUTPUT_DIR" > /dev/null 2>&1 ;;
+    *)           error "Unknown file format: $FILE" ; return 1 ;;
+  esac
+}
+
+# Function to get file size
+get_size() {
+  local FILE=$1
+  du -sh "$FILE" 2>/dev/null | cut -f1
+}
+
+# Main script execution
+main() {
+  OUTPUT_DIR=""
+
+  # Check if the user provided a file as an argument
+  if [ -z "$1" ]; then
+    error "Usage: $0 <file> [-o output_dir]"
+    exit 1
+  fi
+
+  FILE="$1"
+  shift
+
+  # Parse options
+  while getopts ":o:" opt; do
+    case $opt in
+      o)
+        OUTPUT_DIR="$OPTARG"
+        ;;
+      \?)
+        error "Invalid option: -$OPTARG"
+        exit 1
+        ;;
+      :)
+        error "Option -$OPTARG requires an argument."
+        exit 1
+        ;;
+    esac
+  done
+
+  # Check if the file exists
+  if [ ! -f "$FILE" ]; then
+    error "File not found: $FILE"
+    exit 1
+  fi
+
+  # Set default output directory if not specified
+  if [ -z "$OUTPUT_DIR" ]; then
+    OUTPUT_DIR=$(dirname "$FILE")
+  fi
+
+  compressed_size=$(get_size "$FILE")
+  echo "Extracting file (Size: $compressed_size)"
+
+  start_time=$(date +%s)
+
+  if extract "$FILE" "$OUTPUT_DIR"; then
+    end_time=$(date +%s)
+    elapsed_time=$((end_time - start_time))
+    decompressed_size=$(get_size "$OUTPUT_DIR")
+
+    echo "Extraction complete."
+    echo "Summary: [Decompressed size: $decompressed_size] [Time: $elapsed_time seconds]"
+  else
+    error "Extraction failed."
+    exit 1
+  fi
+}
+
+# Run the main function with provided arguments
+main "$@"
